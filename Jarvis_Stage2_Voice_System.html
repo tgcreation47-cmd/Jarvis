@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#04111e">
+<title>JARVIS • Voice System v2</title>
+<style>
+:root{--c:#42ddff;--c2:#168aff;--bg:#04111e;--panel:rgba(5,27,45,.88);--muted:#8eb5c9}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 32%,#103d5b 0,#071b2d 43%,#020811 82%);color:#e8faff;font-family:Arial,sans-serif}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(rgba(65,210,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(65,210,255,.045) 1px,transparent 1px);background-size:30px 30px}
+header{display:flex;justify-content:space-between;gap:10px;padding:15px 17px;border-bottom:1px solid #1c5a76;font-size:11px;letter-spacing:2px;color:var(--c)}
+.status{color:#79f4bd;letter-spacing:1px}
+main{max-width:700px;margin:auto;padding:20px 16px 36px;text-align:center}
+h1{margin:8px 0 3px;font-size:clamp(32px,8vw,48px);letter-spacing:8px;text-shadow:0 0 20px #13bfff}
+.sub{font-size:10px;letter-spacing:3px;color:var(--muted)}
+.core-wrap{height:240px;display:grid;place-items:center;position:relative}
+.core{width:166px;height:166px;border-radius:50%;border:1px solid var(--c);display:grid;place-items:center;position:relative;box-shadow:0 0 25px #087ca8,inset 0 0 25px #087ca8}
+.core:before,.core:after{content:"";position:absolute;inset:-15px;border:2px solid transparent;border-top-color:#70edff;border-bottom-color:#168bff;border-radius:50%;animation:spin 7s linear infinite}
+.core:after{inset:-27px;border-width:1px;border-left-color:#70edff;border-right-color:#168bff;animation-direction:reverse;animation-duration:12s}
+@keyframes spin{to{transform:rotate(360deg)}}
+.orb{width:83px;height:83px;border-radius:50%;background:radial-gradient(circle,#e7ffff 0,#5ce4ff 23%,#087dbb 65%,#062642 100%);box-shadow:0 0 32px #29dfff}
+.listening .orb{animation:pulse .8s infinite alternate}
+@keyframes pulse{to{transform:scale(1.14);box-shadow:0 0 55px #4ceaff}}
+.state{position:absolute;bottom:4px;font-size:10px;letter-spacing:2px;color:#8cecff}
+.panel{background:var(--panel);border:1px solid #1b6686;border-radius:13px;padding:15px;margin:12px 0;box-shadow:0 0 18px #0088bb12;text-align:left}
+.caption{font-size:10px;letter-spacing:2px;color:#8ddff2;margin-bottom:9px}
+#transcript,#reply{font-size:15px;line-height:1.55;min-height:24px;overflow-wrap:anywhere}
+#reply{color:#d9faff}
+.controls{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+button,select,input{font:inherit}
+button{border:1px solid #35c9ef;background:#082c45;color:#e9fbff;border-radius:28px;padding:12px 16px;font-size:12px;font-weight:bold;letter-spacing:1px}
+button.primary{background:#087da7;box-shadow:0 0 15px #087da766}
+button:disabled{opacity:.45}
+input,select{width:100%;padding:12px;border-radius:8px;border:1px solid #1b6686;background:#031522;color:#eafaff}
+.small{font-size:11px;color:var(--muted);line-height:1.5}
+footer{text-align:center;font-size:10px;letter-spacing:2px;color:#668ca2;margin-top:22px}
+</style>
+</head>
+<body>
+<header><span>J.A.R.V.I.S / VOICE SYSTEM V2</span><span class="status" id="online">● READY</span></header>
+<main>
+<h1>JARVIS</h1><div class="sub">VOICE INTERFACE • STAGE 2</div>
+<div class="core-wrap" id="coreWrap"><div class="core"><div class="orb"></div></div><div class="state" id="state">SYSTEM STANDBY</div></div>
+<section class="panel"><div class="caption">WHAT I HEARD</div><div id="transcript">Your spoken words will appear here.</div></section>
+<section class="panel"><div class="caption">JARVIS RESPONSE</div><div id="reply">Good day, boss. Voice system is ready. Tap MIC and speak.</div></section>
+<section class="panel">
+<div class="caption">VOICE CONTROLS</div>
+<div class="controls">
+<button class="primary" id="mic" onclick="startListening()">🎙 START MIC</button>
+<button id="stop" onclick="stopListening()" disabled>■ STOP</button>
+<button onclick="speakReply()">🔊 SPEAK REPLY</button>
+</div>
+</section>
+<section class="panel">
+<div class="caption">TYPE A COMMAND</div>
+<input id="typed" placeholder="Example: What time is it?">
+<div class="controls"><button class="primary" onclick="handleTyped()">SEND</button><button onclick="clearScreen()">CLEAR</button></div>
+</section>
+<section class="panel">
+<div class="caption">LANGUAGE</div>
+<select id="language">
+<option value="en-IN">English (India)</option>
+<option value="te-IN">Telugu</option>
+<option value="hi-IN">Hindi</option>
+</select>
+<p class="small">This version uses your browser's speech recognition and text-to-speech where supported. It works without an API key, but it is not connected to an AI model yet.</p>
+</section>
+<footer>JARVIS V2 • LOCAL VOICE DEMO • NO API KEY</footer>
+</main>
+<script>
+let recognition=null, latestReply="Good day, boss. Voice system is ready.";
+const $=id=>document.getElementById(id);
+function setState(s,listening=false){$("state").textContent=s;$("coreWrap").classList.toggle("listening",listening);}
+function showReply(t){latestReply=t;$("reply").textContent=t;setState("RESPONSE READY");}
+function processCommand(raw){
+ const text=raw.trim(); if(!text)return;
+ $("transcript").textContent=text;
+ const q=text.toLowerCase();let answer;
+ if(q.includes("hello")||q==="hi"||q.includes("హలో")||q.includes("నమస్కారం")) answer="Hello, boss. What can I do for you?";
+ else if(q.includes("time")||q.includes("సమయం")) answer="The time is "+new Date().toLocaleTimeString();
+ else if(q.includes("date")||q.includes("తేదీ")||q.includes("today")) answer="Today is "+new Date().toLocaleDateString();
+ else if(q.includes("your name")||q.includes("who are you")||q.includes("నీ పేరు")) answer="I am Jarvis, your personal assistant interface.";
+ else if(q.includes("thank")||q.includes("ధన్యవాద")) answer="You are welcome, boss.";
+ else if(q.includes("help")||q.includes("సహాయం")) answer="You can ask me the time, date, or my name. More abilities will be added in later stages.";
+ else answer="I heard you say: "+text+". My AI brain is not connected yet.";
+ showReply(answer);
+}
+function startListening(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){showReply("Speech recognition is not supported in this browser. Try Chrome, allow microphone permission, or type your command.");return;}
+ try{
+  recognition=new SR();recognition.lang=$("language").value;recognition.interimResults=true;recognition.continuous=false;
+  recognition.onstart=()=>{setState("LISTENING...",true);$("mic").disabled=true;$("stop").disabled=false;$("online").textContent="● LISTENING";};
+  recognition.onresult=e=>{let interim="",finalText="";for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}$("transcript").textContent=finalText||interim;if(finalText)processCommand(finalText);};
+  recognition.onerror=e=>{setState("MICROPHONE ERROR");showReply("Microphone error: "+e.error+". Check browser microphone permission and try again.");};
+  recognition.onend=()=>{$("mic").disabled=false;$("stop").disabled=true;$("online").textContent="● READY";if($("state").textContent==="LISTENING...")setState("SYSTEM STANDBY");};
+  recognition.start();
+ }catch(err){showReply("Could not start microphone. Please wait and try again.");}
+}
+function stopListening(){if(recognition){try{recognition.stop()}catch(e){}}}
+function handleTyped(){const v=$("typed").value.trim();if(v){processCommand(v);$("typed").value="";}}
+function speakReply(){
+ if(!("speechSynthesis" in window)){showReply("Text-to-speech is not supported in this browser.");return;}
+ window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(latestReply);u.lang=$("language").value;u.rate=0.95;u.pitch=0.9;window.speechSynthesis.speak(u);
+}
+function clearScreen(){$("transcript").textContent="Your spoken words will appear here.";$("typed").value="";showReply("Screen cleared. Ready, boss.");}
+$("typed").addEventListener("keydown",e=>{if(e.key==="Enter")handleTyped();});
+</script>
+</body></html>
